@@ -1,0 +1,153 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  CUSTOMER
+  ADMIN
+}
+
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  IN_SERVICE
+  COMPLETED
+  CANCELLED
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String   @unique
+  phone     String?
+  password  String
+  role      UserRole @default(CUSTOMER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  vehicles       Vehicle[]
+  appointments   Appointment[]
+  serviceHistory ServiceHistory[]
+
+  @@map("users")
+}
+
+model Vehicle {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  brand     String
+  model     String
+  year      Int
+  plate     String   @unique
+  type      String
+  color     String?
+  mileage   Int?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  appointments   Appointment[]
+  serviceHistory ServiceHistory[]
+
+  @@index([userId])
+  @@map("vehicles")
+}
+
+model Service {
+  id          Int      @id @default(autoincrement())
+  name        String
+  slug        String   @unique
+  description String
+  category    String
+  price       Decimal  @db.Decimal(10, 2)
+  duration    Int
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  appointmentServices AppointmentService[]
+
+  @@index([category])
+  @@index([active])
+  @@map("services")
+}
+
+model Appointment {
+  id              Int               @id @default(autoincrement())
+  userId          Int
+  vehicleId       Int
+  date            DateTime
+  status          AppointmentStatus @default(PENDING)
+  customerNotes   String?           @db.Text
+  technicianNotes String?           @db.Text
+  mileage         Int?
+  observations    String?           @db.Text
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  user                User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  vehicle             Vehicle              @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  appointmentServices AppointmentService[]
+  serviceHistory      ServiceHistory?
+
+  @@index([userId])
+  @@index([vehicleId])
+  @@index([date])
+  @@index([status])
+  @@map("appointments")
+}
+
+model AppointmentService {
+  id            Int     @id @default(autoincrement())
+  appointmentId Int
+  serviceId     Int
+  price         Decimal @db.Decimal(10, 2)
+
+  appointment Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  service     Service     @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+
+  @@unique([appointmentId, serviceId])
+  @@index([serviceId])
+  @@map("appointment_services")
+}
+
+model ServiceHistory {
+  id            Int      @id @default(autoincrement())
+  userId        Int
+  vehicleId     Int
+  appointmentId Int?     @unique
+  date          DateTime
+  mileage       Int?
+  description   String   @db.Text
+  observations  String?  @db.Text
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  vehicle     Vehicle      @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  appointment Appointment? @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([vehicleId])
+  @@index([date])
+  @@map("service_history")
+}
+
+model BusinessSettings {
+  id                  Int      @id @default(1)
+  businessName        String   @default("AutoCare SV")
+  phone               String   @default("")
+  email               String   @default("")
+  address             String   @default("")
+  openingHours        String   @default("")
+  oilChangeIntervalKm Int      @default(5000)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@map("business_settings")
+}

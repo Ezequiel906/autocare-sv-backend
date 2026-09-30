@@ -1,4 +1,5 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, UserRole } from '@prisma/client';
+import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
 
@@ -65,7 +66,20 @@ const services = [
   },
 ];
 
+function getRequiredEnvironmentVariable(name: string): string {
+  const value = process.env[name];
+
+  if (!value?.trim()) {
+    throw new Error(`${name} environment variable is required`);
+  }
+
+  return value;
+}
+
 async function main() {
+  const adminEmail = getRequiredEnvironmentVariable('ADMIN_EMAIL').trim();
+  const adminPassword = getRequiredEnvironmentVariable('ADMIN_PASSWORD');
+
   for (const service of services) {
     await prisma.service.upsert({
       where: { slug: service.slug },
@@ -73,6 +87,33 @@ async function main() {
       create: service,
     });
   }
+
+  const existingAdmin = await prisma.user.findUnique({
+    where: { email: adminEmail },
+    select: { id: true, role: true },
+  });
+
+  if (existingAdmin) {
+    if (existingAdmin.role !== UserRole.ADMIN) {
+      await prisma.user.update({
+        where: { id: existingAdmin.id },
+        data: { role: UserRole.ADMIN },
+      });
+    }
+
+    return;
+  }
+
+  const password = await bcrypt.hash(adminPassword, 12);
+
+  await prisma.user.create({
+    data: {
+      name: 'Administrador',
+      email: adminEmail,
+      password,
+      role: UserRole.ADMIN,
+    },
+  });
 }
 
 main()
